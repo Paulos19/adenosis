@@ -1,26 +1,142 @@
 @import "tailwindcss";
+@import "tw-animate-css";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@custom-variant dark (&:is(.dark *));
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+:root {
+  --radius: 0.625rem;
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+  --chart-1: oklch(0.646 0.222 41.116);
+  --chart-2: oklch(0.6 0.118 184.704);
+  --chart-3: oklch(0.398 0.07 227.392);
+  --chart-4: oklch(0.828 0.189 84.429);
+  --chart-5: oklch(0.769 0.188 70.08);
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
+}
+
+.dark {
+  /* Cores Base (mantendo seus defaults escuros que são bons) */
+  --background: oklch(0.08 0.015 250); /* Um cinza muito escuro, quase preto, levemente azulado */
+  --foreground: oklch(0.95 0.01 250); /* Um cinza muito claro, quase branco, para texto */
+
+  /* Card e Popover (ligeiramente diferentes do background para profundidade) */
+  --card: oklch(0.11 0.02 250); /* Um pouco mais claro que o background */
+  --card-foreground: oklch(0.95 0.01 250);
+  --popover: oklch(0.11 0.02 250);
+  --popover-foreground: oklch(0.95 0.01 250);
+
+  /* Cores Primárias (Verde Escuro Profundo como base, Verde Pálido para texto) */
+  --primary: oklch(0.358 0.095 150.98); /* #135a2a - Verde Escuro Profundo */
+  --primary-foreground: oklch(0.906 0.103 137.76); /* #cdeaaf - Verde Pálido (bom contraste com o verde escuro) */
+  
+  /* Cores Secundárias (pode ser um tom de cinza escuro ou um verde mais sutil) */
+  --secondary: oklch(0.25 0.03 250); /* Cinza escuro para elementos secundários */
+  --secondary-foreground: oklch(0.906 0.103 137.76); /* Verde Pálido para texto em secundário */
+
+  /* Cores "Muted" (para textos e elementos menos importantes) */
+  --muted: oklch(0.25 0.03 250); /* Mesmo que o secundário ou um pouco mais sutil */
+  --muted-foreground: oklch(0.65 0.02 250); /* Cinza claro para texto muted */
+
+  /* Cores de Destaque (Verde Médio como base, texto escuro para contraste) */
+  --accent: oklch(0.673 0.151 130.34); /* #69b043 - Verde Médio */
+  --accent-foreground: oklch(0.1 0.01 150); /* Um verde bem escuro ou preto para texto sobre o verde médio */
+
+  /* Cores Destrutivas (geralmente vermelho, pode manter ou ajustar o tom) */
+  --destructive: oklch(0.55 0.22 25); /* Vermelho escuro para ações destrutivas */
+  --destructive-foreground: oklch(0.95 0.01 230); /* Texto claro sobre o vermelho */
+
+  /* Bordas e Inputs */
+  --border: oklch(0.22 0.025 250 / 70%); /* Borda sutil, um pouco mais clara que o card, com transparência */
+  --input: oklch(0.22 0.025 250 / 50%);   /* Input com um fundo sutil e transparente */
+  --ring: oklch(0.673 0.151 130.34 / 70%); /* Anel de foco com o Verde Médio, com transparência */
+
+  /* Cores para Gráficos (ajuste conforme sua preferência, usando seus verdes) */
+  --chart-1: oklch(0.673 0.151 130.34); /* Verde Médio */
+  --chart-2: oklch(0.358 0.095 150.98); /* Verde Escuro Profundo */
+  --chart-3: oklch(0.55 0.12 140);    /* Um verde intermediário (ajustar matiz/saturação) */
+  --chart-4: oklch(0.906 0.103 137.76); /* Verde Pálido (usar com cuidado, pode ser muito claro para áreas grandes) */
+  --chart-5: oklch(0.45 0.1 160);     /* Outro tom de verde (ajustar) */
+
+  /* Cores para Sidebar (podem herdar de card/background ou ter as suas) */
+  --sidebar: var(--card); /* oklch(0.11 0.02 250) */
+  --sidebar-foreground: var(--foreground); /* oklch(0.95 0.01 250) */
+  --sidebar-primary: var(--primary); /* Verde Escuro Profundo para itens ativos na sidebar */
+  --sidebar-primary-foreground: var(--primary-foreground); /* Verde Pálido */
+  --sidebar-accent: var(--accent); /* Verde Médio para hover/foco na sidebar */
+  --sidebar-accent-foreground: var(--accent-foreground); /* Texto escuro */
+  --sidebar-border: var(--border);
+  --sidebar-ring: var(--ring);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
   }
-}
-
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  body {
+    @apply bg-background text-foreground;
+  }
 }
