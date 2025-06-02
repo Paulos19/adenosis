@@ -1,10 +1,12 @@
+// prisma/schema.prisma
+
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 // ENUMS
@@ -20,6 +22,21 @@ enum BookCondition {
   USED_GOOD
   USED_FAIR
 }
+
+enum BookStatus {
+  PUBLISHED
+  UNPUBLISHED
+  PENDING_APPROVAL
+}
+
+enum ReservationStatus {
+  PENDING     // Cliente demonstrou interesse, aguardando ação do vendedor
+  CONFIRMED   // Vendedor confirmou a venda/disponibilidade, aguardando cliente
+  COMPLETED   // Cliente confirmou entrega e/ou avaliou
+  CANCELLED   // Reserva/Venda cancelada (pelo vendedor ou cliente)
+  // EXPIRED  // Se você implementar expiração de reserva (opcional)
+}
+
 
 // AUTHENTICATION MODELS (for NextAuth.js)
 model Account {
@@ -64,36 +81,46 @@ model User {
   email         String?   @unique
   emailVerified DateTime?
   password      String?
-  image         String?
+  image         String?   // URL para avatar
   role          Role      @default(USER)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  sellerProfile SellerProfile?
-  accounts      Account[]
-  sessions      Session[]
-  wishlist      WishlistItem[]
+  sellerProfile   SellerProfile?
+  accounts        Account[]
+  sessions        Session[]
+  wishlist        WishlistItem[]
+  ratingsGiven    SellerRating[]   @relation("RatingsGivenByUsers")
+  reservations    Reservation[]    @relation("UserReservations")
 }
 
 model SellerProfile {
-  id               String   @id @default(cuid())
-  storeName        String
-  storeDescription String?
-  whatsappNumber   String
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  id                String   @id @default(cuid())
+  storeName         String   @unique 
+  storeHandle       String?  @unique 
+  storeDescription  String?  @db.Text
+  whatsappNumber    String   
+  storeLogoUrl      String?  
+  storeBannerUrl    String?  
+  averageRating     Float?   
+  totalRatings      Int      @default(0) 
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   userId String @unique
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  books Book[]
+  books             Book[]
+  ratingsReceived   SellerRating[]   @relation("RatingsForSeller")
+  reservations      Reservation[]    @relation("SellerReservations")
 }
 
 model Category {
-  id   String @id @default(cuid())
-  name String @unique
-
-  books Book[]
+  id        String @id @default(cuid())
+  name      String @unique
+  slug      String @unique 
+  // imageUrl  String? 
+  books     Book[]
 }
 
 model Book {
@@ -104,12 +131,15 @@ model Book {
   price           Float
   coverImageUrl   String
   condition       BookCondition
+  status          BookStatus    @default(PUBLISHED)
   stock           Int           @default(1)
-  isbn            String?
+  isbn            String?       @unique 
   publisher       String?
   publicationYear Int?
   language        String?
   pages           Int?
+  tags            String[]      
+  viewCount       Int           @default(0)
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
@@ -119,7 +149,14 @@ model Book {
   sellerId String
   seller   SellerProfile @relation(fields: [sellerId], references: [id], onDelete: Cascade)
 
-  wishlistItems WishlistItem[]
+  wishlistItems   WishlistItem[]
+  reservations    Reservation[]
+
+  @@index([title]) 
+  @@index([author])
+  @@index([categoryId])
+  @@index([sellerId])
+  @@index([status])
 }
 
 model WishlistItem {
@@ -133,4 +170,49 @@ model WishlistItem {
   book   Book   @relation(fields: [bookId], references: [id], onDelete: Cascade)
 
   @@unique([userId, bookId])
+}
+
+model SellerRating {
+  id        String   @id @default(cuid())
+  rating    Int      
+  comment   String?  @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sellerProfileId String
+  sellerProfile   SellerProfile @relation("RatingsForSeller", fields: [sellerProfileId], references: [id], onDelete: Cascade)
+
+  ratedById String 
+  ratedBy   User   @relation("RatingsGivenByUsers", fields: [ratedById], references: [id], onDelete: Cascade)
+
+  @@unique([sellerProfileId, ratedById])
+  @@index([sellerProfileId])
+  @@index([ratedById])
+}
+
+model Reservation {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  bookId String
+  book   Book   @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  userId String // Cliente
+  user   User   @relation("UserReservations", fields: [userId], references: [id], onDelete: Cascade)
+
+  sellerProfileId String // Vendedor
+  sellerProfile   SellerProfile @relation("SellerReservations", fields: [sellerProfileId], references: [id], onDelete: Cascade)
+
+  status         ReservationStatus @default(PENDING)
+  
+  customerConfirmationToken         String?   @unique 
+  customerConfirmationTokenExpires  DateTime? 
+  deliveryConfirmedAt             DateTime? 
+  // sellerNotes                     String?   @db.Text 
+
+  @@index([userId])
+  @@index([bookId])
+  @@index([sellerProfileId])
+  @@index([status])
 }

@@ -3,108 +3,107 @@ import { withAuth, NextRequestWithAuth } from "next-auth/middleware";
 import { NextResponse } from "next/server";
 
 export default withAuth(
-  // `withAuth` eleva a tipagem de `req` para `NextRequestWithAuth`
   function middleware(req: NextRequestWithAuth) {
     const token = req.nextauth.token;
     const { pathname } = req.nextUrl;
 
-    // Se não há token e a rota não é pública, withAuth já redireciona para login.
-    // Este bloco é para lógicas adicionais APÓS a autenticação básica.
-
-    // Exemplo de proteção específica para /dashboard
-    if (pathname.startsWith("/dashboard") && token?.role !== "SELLER" && token?.role !== "ADMIN") {
-      // Se não for SELLER ou ADMIN, redireciona para uma página de acesso negado ou home
-      // Poderíamos ter uma página /acesso-negado
-      return NextResponse.redirect(new URL("/", req.url)); 
+    // Proteção específica para /dashboard-admin
+    if (pathname.startsWith("/dashboard-admin")) {
+      if (!token || token.email !== process.env.ADMIN_EMAIL) {
+        console.warn(`[Middleware] Tentativa de acesso não autorizado a /dashboard-admin por: ${token?.email || 'usuário não logado'}`);
+        return NextResponse.redirect(new URL("/login?error=UnauthorizedAdmin", req.url)); 
+      }
     }
 
-    // Exemplo de proteção para /settings (qualquer usuário autenticado pode acessar)
-    if (pathname.startsWith("/settings") && !token) {
-      // Este caso já é coberto por withAuth, mas exemplifica
-      return NextResponse.redirect(new URL("/login?callbackUrl=" + pathname, req.url));
-    }
-    
-    // Exemplo de proteção de API para criação de livros (apenas SELLER ou ADMIN)
-    if (pathname.startsWith("/api/books") && req.method === "POST") {
-      if (token?.role !== "SELLER" && token?.role !== "ADMIN") {
-        return new NextResponse(JSON.stringify({ error: "Acesso não autorizado" }), { status: 403, headers: { 'Content-Type': 'application/json' }});
+    // Proteção para /dashboard (vendedor)
+    if (pathname.startsWith("/dashboard")) {
+      // Admin também pode ter acesso ao dashboard do vendedor
+      if (!token || (token.role !== "SELLER" && token.email !== process.env.ADMIN_EMAIL)) {
+        return NextResponse.redirect(new URL("/login?error=UnauthorizedSeller", req.url));
       }
     }
     
-    // Se chegou até aqui, permite a requisição
     return NextResponse.next();
   },
   {
     callbacks: {
       authorized: ({ req, token }) => {
-        // Este callback é executado ANTES da função middleware acima.
-        // Define se o usuário está "autorizado" a ponto da função middleware ser chamada.
-        // Se retornar false, o usuário é redirecionado para a página de login.
-        // Se retornar true, a função middleware acima é executada.
-
         const { pathname } = req.nextUrl;
 
-        // Rotas que requerem apenas autenticação (qualquer role)
-        const protectedUserRoutes = ["/settings", "/wishlist"];
-        // Rotas que requerem role de Vendedor ou Admin
-        const protectedSellerRoutes = ["/dashboard"];
-
-        // API routes (exemplos, refine conforme sua necessidade)
-        const protectedApiRoutesForSellers = ["/api/books", "/api/dashboard"]; // Simplificado, POST/PUT/DELETE seriam verificados no middleware principal ou na API
-
-        if (protectedUserRoutes.some(route => pathname.startsWith(route))) {
-          return !!token; // Precisa estar logado
+        if (!process.env.ADMIN_EMAIL) {
+          console.error("[Middleware] ADMIN_EMAIL não está configurado no .env. Ninguém terá acesso de admin supremo.");
+          if (pathname.startsWith("/dashboard-admin")) return false; // Bloqueia rotas /dashboard-admin
         }
 
-        if (protectedSellerRoutes.some(route => pathname.startsWith(route))) {
-          return token?.role === "SELLER" || token?.role === "ADMIN"; // Precisa ser SELLER ou ADMIN
+        // Admin routes: checa se o email do token corresponde ao ADMIN_EMAIL
+        if (pathname.startsWith("/dashboard-admin")) {
+          return !!token && token.email === process.env.ADMIN_EMAIL;
+        }
+
+        // Seller dashboard routes: permite SELLER ou o ADMIN_EMAIL
+        if (pathname.startsWith("/dashboard")) {
+          return !!token && (token.role === "SELLER" || token.email === process.env.ADMIN_EMAIL);
+        }
+
+        // Rotas que requerem apenas autenticação (qualquer role logado)
+        const protectedUserRoutes = ["/settings", "/wishlist"];
+        if (protectedUserRoutes.some(route => pathname.startsWith(route))) {
+          return !!token; 
         }
         
-        if (protectedApiRoutesForSellers.some(route => pathname.startsWith(route))) {
-            // Para APIs, a verificação de método HTTP (POST, PUT, DELETE) é melhor feita
-            // na função middleware principal ou na própria rota da API.
-            // Aqui, apenas garantimos que para acessar essas rotas, o usuário deve ter uma role de vendedor/admin
-            // (ou apenas estar logado, dependendo da API).
-            return token?.role === "SELLER" || token?.role === "ADMIN";
+        // API routes
+        if (pathname.startsWith("/api/books") && (req.method === "POST" || req.method === "PUT" || req.method === "DELETE")) {
+            return !!token && (token.role === "SELLER" || token.email === process.env.ADMIN_EMAIL);
+        }
+        if (pathname.startsWith("/api/seller/profile") && req.method === "PUT") {
+            return !!token && (token.role === "SELLER" || token.email === process.env.ADMIN_EMAIL);
+        }
+        if (pathname === "/api/categories" && req.method === "POST") {
+            return !!token && token.email === process.env.ADMIN_EMAIL;
+        }
+        // Proteger todas as APIs /api/dashboard-admin (se você renomeou as rotas de API do admin também)
+        // Se suas rotas de API do admin ainda são /api/admin, mantenha /api/admin aqui.
+        if (pathname.startsWith("/api/dashboard-admin")) { 
+            return !!token && token.email === process.env.ADMIN_EMAIL;
+        }
+        // Se você ainda tiver rotas /api/admin e quiser protegê-las:
+        // if (pathname.startsWith("/api/admin")) { 
+        //     return !!token && token.email === process.env.ADMIN_EMAIL;
+        // }
+
+
+        // Protege rotas de reserva para usuários logados, a API refina a lógica
+        if (pathname.startsWith("/api/reservations") || pathname.startsWith("/api/dashboard/reservations")) {
+            return !!token; 
+        }
+        if (pathname.startsWith("/api/ai")) { // Exemplo: proteger rotas de IA para usuários logados
+            return !!token; 
         }
 
-
-        // Se a rota não estiver explicitamente listada acima no matcher,
-        // mas for uma rota que por padrão o withAuth protegeria (por estar no matcher),
-        // permitir se o token existir.
-        // Para rotas públicas não listadas no matcher, este middleware não é executado.
-        return true; // Para outras rotas cobertas pelo matcher, permite se autenticado (o token já foi verificado por withAuth)
-                     // Se não houver token, withAuth já redireciona.
+        return true; 
       },
     },
+    pages: {
+        signIn: '/login',
+        error: '/login', 
+    }
   }
 );
 
-// Configuração do Matcher: define quais rotas serão processadas por este middleware.
 export const config = {
   matcher: [
-    /*
-     * Corresponde a todas as rotas exceto aquelas que começam com:
-     * - api/auth (rotas de autenticação do NextAuth)
-     * - _next/static (arquivos estáticos)
-     * - _next/image (otimização de imagens)
-     * - favicon.ico (ícone de favoritos)
-     * - / (página inicial, se você quiser que seja pública)
-     * - /login (página de login)
-     * - /register (página de registro)
-     * Adicione aqui outras rotas públicas.
-     */
-    // "/((?!api/auth|_next/static|_next/image|favicon.ico|login|register).*)", // Regex mais complexo
-    
-    // Abordagem mais simples e explícita:
+    "/dashboard-admin/:path*", // ATUALIZADO para o novo caminho do admin
     "/dashboard/:path*",
     "/settings/:path*",
     "/wishlist/:path*",
-    // "/admin/:path*", // Se você tiver uma área de admin
-
-    // API Routes que você quer proteger com base em role/auth
-    "/api/books/:path*", // Para POST, PUT, DELETE em /api/books e /api/books/[id]
-    "/api/dashboard/:path*",
-    // Outras rotas de API como /api/wishlist se necessário
+    // API Routes
+    "/api/dashboard-admin/:path*", // ATUALIZADO - se suas APIs admin também mudaram
+    // "/api/admin/:path*", // Mantenha se ainda tiver rotas de API /api/admin
+    "/api/books/:path*",
+    "/api/seller/profile",
+    "/api/reservations/:path*",
+    "/api/dashboard/reservations/:path*",
+    "/api/categories", 
+    "/api/ai/:path*", 
   ],
 };
