@@ -175,7 +175,7 @@ function UsersPageContent() {
 
   const openChangePasswordModal = (user: UserWithProfile) => {
     // Verifique com a variável de ambiente do frontend, se configurada
-    if (user.email === process.env.NEXT_PUBLIC_ADMIN_EMAIL_FOR_FRONTEND) {
+    if (user.email === process.env.ADMIN_EMAIL) {
         toast.error("A senha do Admin Supremo não pode ser alterada por esta interface.");
         return;
     }
@@ -277,7 +277,7 @@ function UsersPageContent() {
                 {users.map((user) => {
                   const isCurrentActionDelete = actionState.id === user.id && actionState.type === 'delete';
                   const isCurrentActionChangePassword = actionState.id === user.id && actionState.type === 'changePassword';
-                  const isThisUserTheAdmin = user.email === process.env.NEXT_PUBLIC_ADMIN_EMAIL_FOR_FRONTEND; 
+                  const isThisUserTheAdmin = user.email === process.env.ADMIN_EMAIL; 
 
                   return (
                   <TableRow key={user.id} className="dark:border-slate-600">
