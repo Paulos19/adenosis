@@ -266,12 +266,12 @@ function UsersPageContent() {
           <div className="bg-slate-800/70 shadow-md rounded-lg border border-slate-700 overflow-x-auto">
             <Table>
               <TableHeader><TableRow className="dark:border-slate-700 hover:bg-slate-700/50">
-                  <TableHead className="p-3 w-[60px] hidden sm:table-cell">Avatar</TableHead>
-                  <TableHead className="p-3">Nome & Email</TableHead>
-                  <TableHead className="p-3 hidden md:table-cell">Loja</TableHead>
-                  <TableHead className="p-3">Role</TableHead>
-                  <TableHead className="p-3 hidden lg:table-cell">Desde</TableHead>
-                  <TableHead className="text-right p-3 min-w-[100px]">Ações</TableHead>
+                  <TableHead className="p-3 w-[60px] hidden sm:table-cell text-white">Avatar</TableHead>
+                  <TableHead className="p-3 text-white">Nome & Email</TableHead>
+                  <TableHead className="p-3 hidden md:table-cell text-white">Loja</TableHead>
+                  <TableHead className="p-3 text-white">Role</TableHead>
+                  <TableHead className="p-3 hidden lg:table-cell text-white">Desde</TableHead>
+                  <TableHead className="text-right p-3 min-w-[100px] text-white">Ações</TableHead>
               </TableRow></TableHeader>
               <TableBody>
                 {users.map((user) => {

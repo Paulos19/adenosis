@@ -116,11 +116,12 @@ model SellerProfile {
 }
 
 model Category {
-  id        String @id @default(cuid())
-  name      String @unique
-  slug      String @unique 
+  id          String  @id @default(cuid())
+  name        String  @unique
+  description String? // This line is present and correct
+  slug        String  @unique 
   // imageUrl  String? 
-  books     Book[]
+  books       Book[]
 }
 
 model Book {
