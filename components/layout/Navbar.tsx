@@ -7,7 +7,7 @@ import { useSession, signOut } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { 
   LogIn, LogOut, LayoutDashboard, Settings, 
-  BookUser, Menu, Search as SearchIcon, Heart 
+  BookUser, Menu, Search as SearchIcon, Heart, ShieldCheck // Adicionado ShieldCheck
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -118,7 +118,12 @@ export function Navbar() {
                       )}
                        {user && (
                           <>
-                           { (user.role === 'SELLER' || user.role === 'ADMIN') && (
+                           { user.email === process.env.NEXT_PUBLIC_ADMIN_EMAIL && ( // Verificação para Admin no menu mobile
+                              <Button asChild className="w-full justify-start text-red-400 hover:text-red-300 hover:bg-slate-800/60 p-3 text-base rounded-md" variant="ghost" onClick={() => {router.push('/admin/dashboard'); setIsMobileMenuOpen(false);}}>
+                                  <div className="flex items-center"><ShieldCheck className="mr-2 h-5 w-5" /> Painel Admin</div>
+                              </Button>
+                           )}
+                           { (user.role === 'SELLER') && (
                               <Button asChild className="w-full justify-start text-gray-300 hover:text-emerald-400 hover:bg-slate-800/60 p-3 text-base rounded-md" variant="ghost" onClick={() => {router.push('/dashboard'); setIsMobileMenuOpen(false);}}>
                                   <div className="flex items-center"><LayoutDashboard className="mr-2 h-5 w-5" /> Dashboard</div>
                               </Button>
@@ -141,21 +146,18 @@ export function Navbar() {
               </Sheet>
             </div>
             
-            {/* Logo Principal - APENAS IMAGEM */}
             <Link href="/" className="flex items-center group shrink-0 md:mr-6" aria-label="Página Inicial da Adenosis Livraria">
               <Image
                 src="/logo.png" 
                 alt="Adenosis Livraria Logo"
-                width={200} // Largura da sua logo (ajuste conforme necessário)
-                height={130} // Altura da sua logo (ajuste para manter proporção)
-                className="transition-opacity group-hover:opacity-80" // Altura máxima para se encaixar na navbar
-                priority // Importante para LCP se for o logo principal
+                width={200}
+                height={130}
+                className="transition-opacity group-hover:opacity-80"
+                priority
               />
-              {/* O span com o texto "Adenosis Livraria" foi REMOVIDO daqui */}
             </Link>
           </div>
 
-          {/* Centro: Navegação Principal para Desktop */}
           <nav className="hidden md:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 items-center gap-x-6 lg:gap-x-8">
             {mainNavLinks.map((link) => (
               <Link
@@ -171,7 +173,6 @@ export function Navbar() {
             ))}
           </nav>
 
-          {/* Direita: Ações do Usuário */}
           <div className="flex items-center justify-end space-x-2 sm:space-x-3">
             <Button
               variant="ghost" size="icon"
@@ -227,7 +228,15 @@ export function Navbar() {
                     </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator className="bg-slate-700"/>
-                  { (user.role === 'SELLER' || user.role === 'ADMIN') && (
+                  
+                  {/* NOVO LINK PARA PAINEL ADMIN */}
+                  {user.email === process.env.NEXT_PUBLIC_ADMIN_EMAIL && (
+                      <DropdownMenuItem onClick={() => router.push('/admin/dashboard')} className="hover:!bg-red-900/50 focus:!bg-red-800/50 cursor-pointer text-red-400 hover:!text-red-300 focus:!text-red-300">
+                          <ShieldCheck className="mr-2 h-4 w-4" /><span>Painel Admin</span>
+                      </DropdownMenuItem>
+                  )}
+
+                  {user.role === 'SELLER' && (
                       <DropdownMenuItem onClick={() => router.push('/dashboard')} className="hover:!bg-slate-800 focus:!bg-slate-800 cursor-pointer">
                           <LayoutDashboard className="mr-2 h-4 w-4 text-emerald-400" /><span>Dashboard</span>
                       </DropdownMenuItem>

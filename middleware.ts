@@ -7,10 +7,10 @@ export default withAuth(
     const token = req.nextauth.token;
     const { pathname } = req.nextUrl;
 
-    // Proteção específica para /dashboard-admin
-    if (pathname.startsWith("/dashboard-admin")) {
+    // Proteção específica para /admin/dashboard (CORRIGIDO)
+    if (pathname.startsWith("/admin/dashboard")) {
       if (!token || token.email !== process.env.ADMIN_EMAIL) {
-        console.warn(`[Middleware] Tentativa de acesso não autorizado a /dashboard-admin por: ${token?.email || 'usuário não logado'}`);
+        console.warn(`[Middleware] Tentativa de acesso não autorizado a /admin/dashboard por: ${token?.email || 'usuário não logado'}`);
         return NextResponse.redirect(new URL("/login?error=UnauthorizedAdmin", req.url)); 
       }
     }
@@ -32,11 +32,11 @@ export default withAuth(
 
         if (!process.env.ADMIN_EMAIL) {
           console.error("[Middleware] ADMIN_EMAIL não está configurado no .env. Ninguém terá acesso de admin supremo.");
-          if (pathname.startsWith("/dashboard-admin")) return false; // Bloqueia rotas /dashboard-admin
+          if (pathname.startsWith("/admin/dashboard")) return false; // Bloqueia rotas /admin/dashboard
         }
 
-        // Admin routes: checa se o email do token corresponde ao ADMIN_EMAIL
-        if (pathname.startsWith("/dashboard-admin")) {
+        // Admin routes: checa se o email do token corresponde ao ADMIN_EMAIL (CORRIGIDO)
+        if (pathname.startsWith("/admin/dashboard")) {
           return !!token && token.email === process.env.ADMIN_EMAIL;
         }
 
@@ -61,16 +61,11 @@ export default withAuth(
         if (pathname === "/api/categories" && req.method === "POST") {
             return !!token && token.email === process.env.ADMIN_EMAIL;
         }
-        // Proteger todas as APIs /api/dashboard-admin (se você renomeou as rotas de API do admin também)
-        // Se suas rotas de API do admin ainda são /api/admin, mantenha /api/admin aqui.
-        if (pathname.startsWith("/api/dashboard-admin")) { 
+        
+        // Proteger todas as APIs /api/admin
+        if (pathname.startsWith("/api/admin")) { 
             return !!token && token.email === process.env.ADMIN_EMAIL;
         }
-        // Se você ainda tiver rotas /api/admin e quiser protegê-las:
-        // if (pathname.startsWith("/api/admin")) { 
-        //     return !!token && token.email === process.env.ADMIN_EMAIL;
-        // }
-
 
         // Protege rotas de reserva para usuários logados, a API refina a lógica
         if (pathname.startsWith("/api/reservations") || pathname.startsWith("/api/dashboard/reservations")) {
@@ -92,13 +87,12 @@ export default withAuth(
 
 export const config = {
   matcher: [
-    "/dashboard-admin/:path*", // ATUALIZADO para o novo caminho do admin
+    "/admin/dashboard/:path*", // ATUALIZADO para o novo caminho do admin
     "/dashboard/:path*",
     "/settings/:path*",
     "/wishlist/:path*",
     // API Routes
-    "/api/dashboard-admin/:path*", // ATUALIZADO - se suas APIs admin também mudaram
-    // "/api/admin/:path*", // Mantenha se ainda tiver rotas de API /api/admin
+    "/api/admin/:path*", // ATUALIZADO - Protege as APIs de admin
     "/api/books/:path*",
     "/api/seller/profile",
     "/api/reservations/:path*",
