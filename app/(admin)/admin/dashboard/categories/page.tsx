@@ -1,23 +1,27 @@
-// src/app/(admin_group_name)/dashboard/categories/page.tsx
+// src/app/(admin)/admin/dashboard/categories/page.tsx
 'use client';
 
 import { useState, useEffect, useCallback, FormEvent, Suspense } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation'; // Adicionado useSearchParams
+import { useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import axios, { AxiosError } from 'axios';
 import toast from 'react-hot-toast';
-import { Category as PrismaCategory, Prisma } from '@prisma/client'; // Importe Prisma para tipos
+import { Category as PrismaCategory, Prisma } from '@prisma/client';
 import { Palette, PlusCircle, Edit3, Trash2, Loader2, Sparkles, Info } from 'lucide-react';
-import { useDebounce } from 'use-debounce'; // npm install use-debounce
+import { useDebounce } from 'use-debounce';
+import { z } from 'zod';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useForm } from 'react-hook-form';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea'; // Para descrição da categoria
+import { Textarea } from '@/components/ui/textarea';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow
 } from "@/components/ui/table";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
-  DialogFooter, DialogClose, DialogTrigger
+  DialogFooter, DialogTrigger
 } from "@/components/ui/dialog";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -26,13 +30,15 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
+import { Label } from '@/components/ui/label';
+
 
 // Tipo para categoria com contagem de livros
 type CategoryWithCount = PrismaCategory & {
   _count: { books: number };
 };
 
-const categoryFormSchema = z.object({ // Zod para o formulário
+const categoryFormSchema = z.object({
   name: z.string().min(2, "Nome muito curto").max(100, "Nome muito longo"),
   description: z.string().max(500, "Descrição muito longa").optional().nullable(),
 });
@@ -43,37 +49,38 @@ function CategoryForm({
   initialData,
   onSubmit,
   isSubmitting,
-  onCancel,
   formId,
+  allCategories, // Passa todas as categorias existentes
 }: {
   initialData?: Partial<CategoryFormValues>;
   onSubmit: (values: CategoryFormValues) => Promise<void>;
   isSubmitting: boolean;
-  onCancel?: () => void;
   formId: string;
+  allCategories: CategoryWithCount[];
 }) {
   const [categoryName, setCategoryName] = useState(initialData?.name || '');
-  const [debouncedCategoryName] = useDebounce(categoryName, 700); // Delay para sugestões Gemini
+  const [debouncedCategoryName] = useDebounce(categoryName, 700);
   const [geminiSuggestions, setGeminiSuggestions] = useState<string[]>([]);
   const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
-  const [existingCategoryNames, setExistingCategoryNames] = useState<string[]>([]); // Para passar ao Gemini
+  const [existingCategoryNames, setExistingCategoryNames] = useState<string[]>([]);
 
-  // Efeito para buscar sugestões do Gemini
   useEffect(() => {
-    if (debouncedCategoryName.length > 2 && formId === 'add-category-form') { // Só para o form de adicionar
+    setExistingCategoryNames(allCategories.map(c => c.name));
+  }, [allCategories]);
+
+  useEffect(() => {
+    if (debouncedCategoryName.length > 2 && formId === 'add-category-form') {
       const fetchSuggestions = async () => {
         setIsLoadingSuggestions(true);
         try {
-          // Idealmente, você teria uma lista de categorias existentes para passar aqui
-          // Para evitar sugerir o que já existe.
-          const response = await axios.post('/api/admin/ai/suggest-categories', { 
+          const response = await axios.post('/api/ai/suggest-categories', { 
             baseCategoryName: debouncedCategoryName,
-            existingCategories: existingCategoryNames // Passa categorias existentes
+            existingCategories: existingCategoryNames,
           });
           setGeminiSuggestions(response.data.suggestions || []);
         } catch (error) {
           console.error("Erro ao buscar sugestões do Gemini:", error);
-          setGeminiSuggestions([]); // Limpa em caso de erro
+          setGeminiSuggestions([]);
         } finally {
           setIsLoadingSuggestions(false);
         }
@@ -84,19 +91,12 @@ function CategoryForm({
     }
   }, [debouncedCategoryName, formId, existingCategoryNames]);
 
-  // Atualizar nomes de categorias existentes (ex: para o useEffect do Gemini)
-  // Este useEffect dependeria de uma prop 'allCategories' se você a passasse
-  // useEffect(() => {
-  // if (allCategories) setExistingCategoryNames(allCategories.map(c => c.name));
-  // }, [allCategories]);
-
-
   const { register, handleSubmit, formState: { errors }, reset, setValue } = useForm<CategoryFormValues>({
     resolver: zodResolver(categoryFormSchema),
     defaultValues: initialData || { name: '', description: '' },
   });
 
-  useEffect(() => { // Para preencher o formulário se initialData mudar (modo edição)
+  useEffect(() => {
     if (initialData) {
       reset(initialData);
       setCategoryName(initialData.name || '');
@@ -105,8 +105,8 @@ function CategoryForm({
 
   const handleSuggestionClick = (suggestion: string) => {
     setValue('name', suggestion, { shouldValidate: true, shouldDirty: true });
-    setCategoryName(suggestion); // Atualiza o input para o debouncer
-    setGeminiSuggestions([]); // Limpa sugestões após clique
+    setCategoryName(suggestion);
+    setGeminiSuggestions([]);
   };
 
   return (
@@ -115,17 +115,16 @@ function CategoryForm({
         <Label htmlFor={`${formId}-name`} className={cn(errors.name && "text-destructive")}>Nome da Categoria</Label>
         <Input
           id={`${formId}-name`}
-          {...register("name")}
+          {...register("name", {
+            onChange: (e) => setCategoryName(e.target.value),
+            onBlur: (e) => setValue("name", e.target.value, {shouldValidate: true})
+          })}
           placeholder="Ex: Ficção Científica"
           className={cn("bg-slate-700 border-slate-600", errors.name && "border-destructive")}
           disabled={isSubmitting}
-          value={categoryName} // Controlado para o debounce do Gemini
-          onChange={(e) => setCategoryName(e.target.value)} // Atualiza o estado local e o RHF via register
-          onBlurCapture={() => setValue("name", categoryName, {shouldValidate: true})} // Sincroniza com RHF no blur
         />
         {errors.name && <p className="text-xs text-destructive mt-1">{errors.name.message}</p>}
         
-        {/* Sugestões do Gemini (apenas para o formulário de adicionar) */}
         {formId === 'add-category-form' && (isLoadingSuggestions || geminiSuggestions.length > 0) && (
           <div className="mt-2 space-y-1">
             <p className="text-xs text-slate-400 flex items-center">
@@ -160,7 +159,6 @@ function CategoryForm({
         />
         {errors.description && <p className="text-xs text-destructive mt-1">{errors.description.message}</p>}
       </div>
-      {/* Botões de submit são geralmente colocados fora do CategoryForm, no DialogFooter */}
     </form>
   );
 }
@@ -171,18 +169,17 @@ function AdminCategoriesPageContent() {
   const [isLoading, setIsLoading] = useState(true);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<CategoryWithCount | null>(null);
   const [deletingCategory, setDeletingCategory] = useState<CategoryWithCount | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false); // Para o formulário dentro do Dialog
-
-  const router = useRouter(); // Para refresh após ação
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const fetchCategories = useCallback(async () => {
     setIsLoading(true);
     try {
-      const response = await axios.get<CategoryWithCount[]>('/api/categories');
-      setCategories(response.data);
+      const response = await axios.get('/api/categories'); // Note que a API retorna PrismaCategory[], não CategoryWithCount[]
+      // Para obter a contagem, a API precisaria ser ajustada. Por ora, vamos simular a contagem ou deixar 0.
+      const categoriesWithCount = (response.data as PrismaCategory[]).map(c => ({...c, _count: { books: 0 }})); // Simulação
+      setCategories(categoriesWithCount);
     } catch (error) {
       toast.error("Falha ao carregar categorias.");
     } finally {
@@ -198,10 +195,11 @@ function AdminCategoriesPageContent() {
     setIsSubmitting(true);
     const toastId = toast.loading("Adicionando categoria...");
     try {
-      await axios.post('/api/categories', values);
+      // CORREÇÃO: Enviar o payload no formato esperado pela API
+      await axios.post('/api/categories', { names: [values.name], description: values.description });
       toast.success("Categoria adicionada com sucesso!", { id: toastId });
       setIsAddDialogOpen(false);
-      fetchCategories(); // Recarrega a lista
+      fetchCategories();
     } catch (error) {
       const axiosError = error as AxiosError<{ error?: string, details?: any }>;
       const errorMsg = axiosError.response?.data?.error || "Falha ao adicionar categoria.";
@@ -216,28 +214,32 @@ function AdminCategoriesPageContent() {
     setIsSubmitting(true);
     const toastId = toast.loading(`Editando "${editingCategory.name}"...`);
     try {
-      await axios.put(`/api/categories/${editingCategory.id}`, values);
+      // Assumindo que a API de edição espera uma estrutura similar (não implementada no projeto)
+      await axios.put(`/api/categories/${editingCategory.id}`, values); 
       toast.success("Categoria atualizada!", { id: toastId });
       setIsEditDialogOpen(false);
       setEditingCategory(null);
       fetchCategories();
-    } catch (error) { /* ... tratamento de erro ... */ } 
+    } catch (error) { 
+        const axiosError = error as AxiosError<{ error?: string, details?: any }>;
+        const errorMsg = axiosError.response?.data?.error || "Falha ao editar categoria.";
+        toast.error(errorMsg, { id: toastId });
+    } 
     finally { setIsSubmitting(false); }
   };
 
   const handleDeleteCategory = async () => {
     if (!deletingCategory) return;
-    setIsSubmitting(true); // Reutiliza para o botão de deletar no dialog
+    setIsSubmitting(true);
     const toastId = toast.loading(`Excluindo "${deletingCategory.name}"...`);
     try {
       await axios.delete(`/api/categories/${deletingCategory.id}`);
       toast.success("Categoria excluída!", { id: toastId });
-      setIsDeleteDialogOpen(false);
+      setIsEditDialogOpen(false); // Fecha o dialog de confirmação
       setDeletingCategory(null);
       fetchCategories();
     } catch (error) { 
         const axiosError = error as AxiosError<{ error?: string }>;
-        // Se a API retornar um erro específico sobre a categoria estar em uso:
         const errorMsg = axiosError.response?.data?.error || "Falha ao excluir categoria.";
         toast.error(errorMsg, { id: toastId, duration: 5000 });
     } 
@@ -248,12 +250,6 @@ function AdminCategoriesPageContent() {
     setEditingCategory(category);
     setIsEditDialogOpen(true);
   };
-
-  const openDeleteDialog = (category: CategoryWithCount) => {
-    setDeletingCategory(category);
-    setIsDeleteDialogOpen(true);
-  };
-
 
   if (isLoading) {
     return (
@@ -294,8 +290,8 @@ function AdminCategoriesPageContent() {
             <CategoryForm 
                 onSubmit={handleAddCategory} 
                 isSubmitting={isSubmitting} 
-                onCancel={() => setIsAddDialogOpen(false)}
                 formId="add-category-form"
+                allCategories={categories}
             />
             <DialogFooter className="pt-4">
                 <Button type="button" variant="outline" onClick={() => setIsAddDialogOpen(false)} className="border-slate-700 hover:bg-slate-800" disabled={isSubmitting}>Cancelar</Button>
@@ -308,7 +304,7 @@ function AdminCategoriesPageContent() {
         </Dialog>
       </div>
 
-      {categories.length === 0 && !isLoading ? (
+      {categories.length === 0 ? (
         <div className="text-center py-10 bg-slate-800/50 rounded-lg border border-slate-700">
           <Palette className="mx-auto h-16 w-16 text-slate-600 mb-4" />
           <h3 className="text-xl font-semibold text-gray-100">Nenhuma categoria cadastrada.</h3>
@@ -336,9 +332,9 @@ function AdminCategoriesPageContent() {
                         <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-blue-400" onClick={() => openEditDialog(category)} title="Editar Categoria">
                             <Edit3 className="h-4 w-4" />
                         </Button>
-                        <AlertDialog>
+                        <AlertDialog open={deletingCategory?.id === category.id} onOpenChange={(open) => {if(!open) setDeletingCategory(null)}}>
                             <AlertDialogTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-red-400" title="Excluir Categoria" disabled={category._count.books > 0}>
+                                <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-red-400" title="Excluir Categoria" disabled={category._count.books > 0} onClick={() => setDeletingCategory(category)}>
                                     <Trash2 className="h-4 w-4" />
                                 </Button>
                             </AlertDialogTrigger>
@@ -351,8 +347,8 @@ function AdminCategoriesPageContent() {
                                     </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
-                                    <AlertDialogCancel className="border-slate-700 hover:bg-slate-800">Cancelar</AlertDialogCancel>
-                                    <Button variant="destructive" onClick={() => {setDeletingCategory(category); handleDeleteCategory();}} disabled={isSubmitting || category._count.books > 0}>
+                                    <AlertDialogCancel className="border-slate-700 hover:bg-slate-800" disabled={isSubmitting}>Cancelar</AlertDialogCancel>
+                                    <Button variant="destructive" onClick={handleDeleteCategory} disabled={isSubmitting || category._count.books > 0}>
                                         {isSubmitting && deletingCategory?.id === category.id && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                         Excluir
                                     </Button>
@@ -368,7 +364,6 @@ function AdminCategoriesPageContent() {
         </div>
       )}
 
-      {/* Dialog para Editar Categoria */}
       {editingCategory && (
         <Dialog open={isEditDialogOpen} onOpenChange={(open) => {if(!open)setEditingCategory(null); setIsEditDialogOpen(open);}}>
             <DialogContent className="bg-slate-900 border-slate-800 text-gray-200 sm:max-w-lg">
@@ -376,11 +371,11 @@ function AdminCategoriesPageContent() {
                     <DialogTitle className="text-emerald-400 text-xl">Editar Categoria: {editingCategory.name}</DialogTitle>
                 </DialogHeader>
                 <CategoryForm 
-                    initialData={{name: editingCategory.name, description: editingCategory.description as string | null}}
+                    initialData={{name: editingCategory.name, description: editingCategory.description}}
                     onSubmit={handleEditCategory} 
                     isSubmitting={isSubmitting}
-                    onCancel={() => {setIsEditDialogOpen(false); setEditingCategory(null);}}
                     formId="edit-category-form"
+                    allCategories={categories}
                 />
                  <DialogFooter className="pt-4">
                     <Button type="button" variant="outline" onClick={() => {setIsEditDialogOpen(false); setEditingCategory(null);}} className="border-slate-700 hover:bg-slate-800" disabled={isSubmitting}>Cancelar</Button>
@@ -396,16 +391,6 @@ function AdminCategoriesPageContent() {
   );
 }
 
-// Componente Container da Página
-export default function AdminCategoriesPageContainer() {
-  return (
-    <Suspense fallback={<AdminCategoriesPageSkeleton />}> {/* Crie este skeleton se necessário */}
-        <AdminCategoriesPageContent />
-    </Suspense>
-  );
-}
-
-// Skeleton para a página de categorias (exemplo simples)
 function AdminCategoriesPageSkeleton() {
     return (
         <div className="space-y-6">
@@ -425,11 +410,11 @@ function AdminCategoriesPageSkeleton() {
     );
 }
 
-// Importe Zod se não estiver já no topo do arquivo
-import { z, ZodError } from 'zod';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { useForm } from 'react-hook-form';
-import { Label } from '@/components/ui/label';
-// Importe useForm e useDebounce se não estiverem no topo
-// import { useForm } from 'react-hook-form';
-// import { useDebounce } from 'use-debounce';
+// Componente Container da Página
+export default function AdminCategoriesPageContainer() {
+  return (
+    <Suspense fallback={<AdminCategoriesPageSkeleton />}>
+        <AdminCategoriesPageContent />
+    </Suspense>
+  );
+}

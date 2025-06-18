@@ -5,6 +5,25 @@ import { authOptions } from "@/app/api/auth/[...nextauth]/route"; // Ajuste o ca
 import { db } from "@/lib/prisma";
 import { z } from "zod";
 
+// Função auxiliar para limpar e formatar o número do WhatsApp
+const formatWhatsappNumber = (number: string): string | null => {
+  if (!number) return null;
+  // Remove todos os caracteres que não são dígitos
+  const cleaned = number.replace(/\D/g, "");
+
+  // Se o número começar com 55 e tiver 12 ou 13 dígitos (DDI + DDD + número), está ok.
+  if (cleaned.startsWith("55") && (cleaned.length === 12 || cleaned.length === 13)) {
+    return cleaned;
+  }
+  // Se não começar com 55, mas tiver 10 ou 11 dígitos (DDD + número), adicionamos o DDI 55.
+  else if (!cleaned.startsWith("55") && (cleaned.length === 10 || cleaned.length === 11)) {
+    return `55${cleaned}`;
+  }
+  // Retorna nulo se o formato for irreconhecível após a limpeza
+  return null; 
+};
+
+
 // Schema Zod para validação dos dados de atualização do perfil da loja
 const updateSellerProfileSchema = z.object({
   storeName: z
@@ -16,10 +35,11 @@ const updateSellerProfileSchema = z.object({
     .max(5000, "Descrição da loja muito longa (máximo de 5000 caracteres).")
     .optional()
     .nullable(),
+  // Regex mais permissivo: verifica se há pelo menos 10 dígitos (considerando DDD+número), permitindo alguns caracteres especiais.
+  // A formatação final para o padrão '55...' será feita no backend.
   whatsappNumber: z
     .string({ required_error: "O número do WhatsApp é obrigatório." })
-    // Regex um pouco mais flexível para aceitar formatos comuns, a limpeza ocorre depois
-    .regex(/^(\+55\s?)?(\(?[1-9]{2}\)?\s?)?(9?\d{4,5})-?(\d{4})$/, "Formato de WhatsApp inválido. Ex: +55 (11) 98765-4321") 
+    .regex(/^[\s()+-]*([0-9][\s()+-]*){10,15}$/, "Formato de WhatsApp inválido. Inclua DDI e DDD.") 
     .min(10, "Número de WhatsApp muito curto."),
   storeLogoUrl: z
     .string()
@@ -27,28 +47,6 @@ const updateSellerProfileSchema = z.object({
     .optional()
     .nullable(), // Campo para a URL do logo da loja
 });
-
-// Função auxiliar para formatar o número do WhatsApp
-const formatWhatsappNumber = (number: string): string | null => {
-  if (!number) return null;
-  let cleaned = number.replace(/\D/g, ""); // Remove todos os caracteres não numéricos
-
-  // Caso 1: Já tem DDI 55 e tem tamanho correto (12 ou 13 dígitos)
-  if (cleaned.startsWith("55") && (cleaned.length === 12 || cleaned.length === 13)) {
-    return cleaned;
-  } 
-  // Caso 2: Não tem DDI 55, mas tem DDD + número (10 ou 11 dígitos)
-  // Adiciona DDI 55 se for um formato comum brasileiro
-  else if (!cleaned.startsWith("55") && (cleaned.length === 10 || cleaned.length === 11)) {
-    const ddd = cleaned.substring(0, 2);
-    const restOfNumber = cleaned.substring(2);
-    // Celular (9 dígitos após DDD) ou Fixo (8 dígitos após DDD)
-    if ((restOfNumber.length === 9 && restOfNumber.startsWith('9')) || restOfNumber.length === 8) {
-        return `55${cleaned}`;
-    }
-  }
-  return null; // Formato não reconhecido após tentativa de limpeza
-};
 
 export async function PUT(req: Request) {
   try {
@@ -80,22 +78,19 @@ export async function PUT(req: Request) {
     const { storeName, storeDescription, whatsappNumber, storeLogoUrl } = validation.data;
 
     const formattedWhatsapp = formatWhatsappNumber(whatsappNumber);
-    if (!formattedWhatsapp) { // Se, mesmo após o regex do Zod, a formatação falhar
+    if (!formattedWhatsapp) {
         return new NextResponse(
-            JSON.stringify({ error: "Número de WhatsApp inválido para formatação final. Verifique o DDI e DDD." }),
+            JSON.stringify({ error: "Número de WhatsApp inválido para formatação. Verifique o DDI e DDD." }),
             { status: 400, headers: { 'Content-Type': 'application/json' } }
         );
     }
 
-    const dataToUpdate: any = { // Usar 'any' ou um tipo mais específico
+    const dataToUpdate: any = {
         storeName,
-        storeDescription: storeDescription === undefined ? sellerProfile.storeDescription : (storeDescription || null), // Mantém o antigo se undefined, "" se vazio, null se null
+        storeDescription: storeDescription === undefined ? sellerProfile.storeDescription : (storeDescription || null),
         whatsappNumber: formattedWhatsapp,
     };
 
-    // Só atualiza storeLogoUrl se a chave existir em validation.data
-    // Se for enviado { storeLogoUrl: null }, ele será setado para null.
-    // Se a chave storeLogoUrl não for enviada, o valor no banco não é alterado.
     if (Object.prototype.hasOwnProperty.call(validation.data, 'storeLogoUrl')) {
         dataToUpdate.storeLogoUrl = storeLogoUrl;
     }
@@ -116,7 +111,7 @@ export async function PUT(req: Request) {
   }
 }
 
-// GET handler (existente)
+// GET handler (sem alterações)
 export async function GET(req: NextRequest) {
     try {
         const session = await getServerSession(authOptions);

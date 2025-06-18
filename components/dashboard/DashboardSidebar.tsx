@@ -3,7 +3,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, BookOpen, BarChart3, Settings, Palette, ShoppingCart } from "lucide-react";
+import { Home, BookOpen, BarChart3, Settings, Palette, ShoppingCart, UploadCloud } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AnimatePresence, motion } from 'framer-motion';
 import { SheetClose } from "@/components/ui/sheet"; // Importar SheetClose
@@ -17,6 +17,7 @@ const dashboardLinks = [
   { href: "/dashboard", label: "Visão Geral", icon: Home },
   { href: "/dashboard/books", label: "Meus Livros", icon: BookOpen },
   { href: "/dashboard/reservations", label: "Reservas", icon: ShoppingCart },
+  { href: "/dashboard/books/import", label: "Importar Livros", icon: UploadCloud },
   { href: "/dashboard/analytics", label: "Análises", icon: BarChart3 },
   { href: "/dashboard/settings", label: "Configurações", icon: Settings },
 ];

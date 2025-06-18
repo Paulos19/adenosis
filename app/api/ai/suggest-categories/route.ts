@@ -1,10 +1,11 @@
-// src/app/api/admin/ai/suggest-categories/route.ts
+// src/app/api/ai/suggest-categories/route.ts
 import { NextResponse } from 'next/server';
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route'; // Ajuste o caminho
 
-const MODEL_NAME = "gemini-1.0-pro"; // Ou "gemini-1.5-flash"
+// CORREÇÃO: Alterado o nome do modelo para um compatível
+const MODEL_NAME = "gemini-2.0-flash";
 const API_KEY = process.env.GEMINI_API_KEY;
 
 if (!API_KEY) {
@@ -18,12 +19,13 @@ export async function POST(req: Request) {
 
   try {
     const session = await getServerSession(authOptions);
+    // Verificação de permissão corrigida para checar ADMIN_EMAIL
     if (!session || !session.user?.email || session.user.email !== process.env.ADMIN_EMAIL) {
       return new NextResponse(JSON.stringify({ error: "Não autorizado" }), { status: 403 });
     }
 
     const body = await req.json();
-    const { baseCategoryName, existingCategories } = body; // existingCategories é um array de nomes de categorias já existentes
+    const { baseCategoryName, existingCategories } = body;
 
     if (!baseCategoryName || typeof baseCategoryName !== 'string' || baseCategoryName.trim().length < 2) {
       return new NextResponse(JSON.stringify({ error: "Nome da categoria base é obrigatório e deve ter pelo menos 2 caracteres." }), { status: 400 });
@@ -41,7 +43,25 @@ export async function POST(req: Request) {
       topP: 0.95,
       maxOutputTokens: 200,
     };
-    const safetySettings = [ /* ... (mesmos safetySettings da outra API Gemini) ... */ ];
+    
+    const safetySettings = [
+      {
+        category: HarmCategory.HARM_CATEGORY_HARASSMENT,
+        threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+      },
+      {
+        category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+        threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+      },
+      {
+        category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+        threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+      },
+      {
+        category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+        threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+      },
+    ];
 
     const existingCategoriesString = existingCategories && existingCategories.length > 0 
         ? `Evite sugerir as seguintes categorias que já existem: ${existingCategories.join(', ')}.` 
@@ -60,24 +80,7 @@ export async function POST(req: Request) {
     const result = await model.generateContent({
         contents: [{ role: "user", parts: promptParts.map(text => ({text})) }],
         generationConfig,
-        safetySettings: [
-          {
-            category: HarmCategory.HARM_CATEGORY_HARASSMENT,
-            threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-          },
-          {
-            category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
-            threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-          },
-          {
-            category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
-            threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-          },
-          {
-            category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-            threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-          },
-        ],
+        safetySettings,
     });
 
     const response = result.response;
@@ -88,9 +91,7 @@ export async function POST(req: Request) {
         }
         if (candidate.content && candidate.content.parts && candidate.content.parts.length > 0) {
             const rawText = candidate.content.parts.map(part => part.text).join("").trim();
-            // Tentar extrair o array JSON da resposta da IA
             try {
-                // A IA pode retornar o array JSON dentro de ```json ... ``` ou diretamente.
                 const jsonMatch = rawText.match(/```json\s*([\s\S]*?)\s*```|(\[[\s\S]*?\])/);
                 if (jsonMatch) {
                     const jsonString = jsonMatch[1] || jsonMatch[2];
@@ -101,14 +102,10 @@ export async function POST(req: Request) {
                         }
                     }
                 }
-                // Se não encontrar um JSON válido, tenta tratar como lista simples ou retorna erro
                 console.warn("Resposta do Gemini para categorias não foi um JSON array válido:", rawText);
-                // Tentar fallback se for uma lista simples separada por vírgulas ou quebras de linha.
                 const fallbackSuggestions = rawText.split(/,|\n/).map(s => s.trim()).filter(Boolean).slice(0,5);
                 if(fallbackSuggestions.length > 0) return NextResponse.json({ suggestions: fallbackSuggestions });
-
                 throw new Error("Formato de sugestões inválido da IA.");
-
             } catch (parseError) {
                 console.error("Erro ao parsear sugestões do Gemini:", parseError, "Raw text:", rawText);
                 return new NextResponse(JSON.stringify({ error: "Erro ao processar sugestões da IA." }), { status: 500 });
