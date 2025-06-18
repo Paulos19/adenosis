@@ -197,7 +197,7 @@ export function Navbar() {
             {status !== 'loading' && !user && (
               <div className="hidden md:flex items-center space-x-2 shrink-0">
                 <Button 
-                  variant="outline" onClick={() => router.push('/login')}
+                  variant="ghost" onClick={() => router.push('/login')}
                   className={cn("transition-colors rounded-md text-sm h-9 px-3", !isScrolled && "text-white border-white/70 hover:bg-white/10 hover:text-white focus:ring-white/30", isScrolled && "border-slate-700 hover:bg-slate-800 text-slate-200")}>
                   <LogIn className="mr-1.5 h-4 w-4" /> Login
                 </Button>
